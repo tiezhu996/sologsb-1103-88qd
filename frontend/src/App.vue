@@ -14,6 +14,7 @@ import {
 } from 'naive-ui'
 import { useCueStore } from '@/stores/cueStore'
 import { useSessionStore } from '@/stores/sessionStore'
+import PendingRestoreDialog from '@/components/checkpoint/PendingRestoreDialog.vue'
 
 const route = useRoute()
 const sessionStore = useSessionStore()
@@ -151,6 +152,8 @@ const currentSessionLabel = computed(() => {
             </RouterView>
           </main>
         </div>
+
+        <PendingRestoreDialog />
       </NDialogProvider>
     </NMessageProvider>
   </NConfigProvider>

@@ -29,7 +29,7 @@ docker compose up -d --build    # 改动代码后重新构建
 | 语言 | TypeScript（`strict`，无 `any`） | `npm run build` 内含 `vue-tsc --noEmit` 类型检查 |
 | UI 组件库 | Naive UI（暗色剧场主题） | 按需引入组件，无全局注册 |
 | 构建工具 | Vite 6 | 路由级代码分割 + 依赖单独 vendor 分块 |
-| 状态管理 | Pinia | 5 个 store，页面只读 store |
+| 状态管理 | Pinia | 6 个 store，页面只读 store |
 | 路由 | Vue Router 4（history 模式） | nginx `try_files` 做 SPA 回退 |
 | 本地存储 | IndexedDB（Dexie 4 封装） | 含数据结构版本号与升级迁移逻辑 |
 | 部署 | 多阶段 Dockerfile（node:20-alpine + nginx:alpine） | 构建期类型检查零错误 |
@@ -38,13 +38,15 @@ docker compose up -d --build    # 改动代码后重新构建
 
 | 路由 | 页面 | 主要能力 | 消费模型 |
 | --- | --- | --- | --- |
-| `/sessions` | 场次编排 | 新建场次、上下调序、查看每场 Cue 数与过渡总时长、硬切衔接预警 | Session、Cue |
+| `/sessions` | 场次编排 | 新建场次、上下调序、查看每场 Cue 数与过渡总时长、硬切衔接预警、**联排前检查点创建与恢复** | Session、Cue、Checkpoint |
 | `/sessions/:id/fixtures` | 灯位通道配置台 | 通道号排布、按灯位分组折叠、重复通道号高亮、灯位负载校验 | Fixture、Session |
 | `/sessions/:id/cues` | Cue 编排时间轴 | 插入 / 复制 / 删除 Cue、拖拽调整先后、沿袭上一条参数、批量偏移过渡时间 | Cue、CueLevel |
 | `/cues/:id/levels` | 通道电平编辑 | 逐通道设定亮度与色温、色温漂移检查、一键对齐基准色温 | CueLevel、Fixture |
-| `/sheets` | 排演表生成与导出 | 勾选 Cue 组表、本地留存历史、预览 / 复制 / 下载纯文本 | RehearsalSheet、Cue |
+| `/sheets` | 排演表生成与导出 | 勾选 Cue 组表、本地留存历史、预览 / 复制 / 下载纯文本、**恢复前排演表来源标注** | RehearsalSheet、Cue、Checkpoint |
 
 核心动作闭环：**建场次 → 配灯位通道 → 插入 Cue → 设定过渡与通道电平 → 导出排演表**。
+
+联排前可在「场次编排」页顶部保存一个**整场检查点**（快照全部场次 / 灯位通道 / Cue 顺序与过渡 / 通道电平）；现场把 Cue 顺序、过渡、通道配接或电平改乱后可整体换回。恢复按四块分别落库并逐块报告，**任一块未成功都会保留待处理记录，页面不会显示为恢复完成**；重开页面时可对未完成的恢复选择「继续」或「放弃」。检查点之后生成的排演表始终保留，并在列表中标注「来自恢复前」。
 
 ## 四、本地开发
 
@@ -75,16 +77,23 @@ sologsb-1103/
     └── src/
         ├── main.ts                 # 启动时先把本地数据载入 Pinia，再挂载视图
         ├── App.vue                 # 暗色主题外壳 + 侧边导航 + Message/Dialog Provider
-        ├── types/                  # 5 个数据模型，一模型一文件
+        ├── types/                  # 6 个数据模型，一模型一文件
         │   ├── session.ts  fixture.ts  cue.ts  level.ts  sheet.ts
+        │   └── checkpoint.ts        # 联排前检查点（整场快照 + 分块恢复状态）
         ├── stores/                 # Pinia：跨页状态唯一来源
         │   ├── sessionStore.ts  cueStore.ts  fixtureStore.ts
         │   ├── levelStore.ts    sheetStore.ts
-        ├── components/common/      # 共享组件
-        │   ├── FadeBar.vue      # 渐变条：渐亮/保持/渐暗按比例绘制
-        │   ├── ChannelChip.vue  # 通道标签：通道号 + 灯位色块 + 亮度百分比
-        │   ├── BlankHint.vue    # 空态引导与新建入口
-        │   └── CueNoInput.vue   # Cue 编号输入与重号校验（支持 Q12.5）
+        │   └── checkpointStore.ts   # 检查点创建 / 分块恢复 / 继续 / 放弃
+        ├── components/
+        │   ├── common/      # 共享组件
+        │   │   ├── FadeBar.vue      # 渐变条：渐亮/保持/渐暗按比例绘制
+        │   │   ├── ChannelChip.vue  # 通道标签：通道号 + 灯位色块 + 亮度百分比
+        │   │   ├── BlankHint.vue    # 空态引导与新建入口
+        │   │   ├── CueNoInput.vue   # Cue 编号输入与重号校验（支持 Q12.5）
+        │   │   └── CheckpointPartsView.vue # 四块恢复状态列表
+        │   └── checkpoint/  # 检查点面板与待处理恢复弹窗
+        │       ├── CheckpointPanel.vue
+        │       └── PendingRestoreDialog.vue
         ├── hooks/
         │   ├── useCueOrder.ts        # 按 cueNo 排序、重排落库、相邻过渡汇总
         │   └── useChannelConflict.ts # 重复通道号与灯位过载检测
@@ -104,9 +113,10 @@ sologsb-1103/
 ## 六、数据存储说明
 
 - 所有数据存放在**浏览器本地 IndexedDB**，数据库名 `gbcuesheet`，由 `src/utils/db.ts` 用 Dexie 统一封装；页面不直接读写数据库，只调用 store 的 action。
-- 共 6 张表：`sessions`、`fixtures`、`cues`、`levels`、`sheets`、`appMeta`（元数据）。
-- **数据结构版本号**：`DB_VERSION = 2`。`version(1)` 定义初始结构；`version(2)` 新增 `updatedAt` / `sheetNo` 索引、`appMeta` 表，并在 `upgrade()` 中迁移既有数据（补齐 `updatedAt`、`orderIndex`、`holdSec`，规范化遗留排演表编号与条目快照）。
+- 共 7 张表：`sessions`、`fixtures`、`cues`、`levels`、`sheets`、`appMeta`（元数据）、`checkpoints`（联排前检查点）。
+- **数据结构版本号**：`DB_VERSION = 3`。`version(1)` 定义初始结构；`version(2)` 新增 `updatedAt` / `sheetNo` 索引、`appMeta` 表，并在 `upgrade()` 中迁移既有数据（补齐 `updatedAt`、`orderIndex`、`holdSec`，规范化遗留排演表编号与条目快照）；`version(3)` 仅新增 `checkpoints` 表，**旧库无检查点数据时照常打开**，不迁移既有业务数据。
 - 删除场次会级联清理其灯位通道、Cue、通道电平与排演表；删除通道会清理对应的电平记录。
+- **检查点恢复**：检查点只快照场次 / 灯位通道 / Cue / 电平四张表，**排演表不进快照、恢复时不动**。恢复按「场次 → 通道配接 → Cue → 电平」四块在各自独立事务里整表换入，逐块记录 `pending / success / failed`；每块尝试前都先落盘进度，中途关闭页面也能继续。四块全部成功后状态才回到 `available` 并记录恢复时间，否则保持 `restoring`，下次打开页面会弹出待处理记录供选择继续或放弃。
 - **容器无状态**：不使用数据库服务、不挂载命名卷；换浏览器或清理站点数据即等于清空。排演表以生成时刻的快照留档，之后修改 Cue 不影响历史记录。
 
 ## 七、容器化实现要点

@@ -17,6 +17,7 @@ import {
 } from 'naive-ui'
 import BlankHint from '@/components/common/BlankHint.vue'
 import FadeBar from '@/components/common/FadeBar.vue'
+import CheckpointPanel from '@/components/checkpoint/CheckpointPanel.vue'
 import { useCueOrder } from '@/hooks/useCueOrder'
 import { useCueStore } from '@/stores/cueStore'
 import { useSessionStore } from '@/stores/sessionStore'
@@ -165,6 +166,8 @@ function focusSession(id: string): void {
         <NButton type="primary" @click="openCreate">新建场次</NButton>
       </div>
     </header>
+
+    <CheckpointPanel />
 
     <section v-if="sessionStore.sortedSessions.length > 0" class="panel">
       <h2 class="panel__title">

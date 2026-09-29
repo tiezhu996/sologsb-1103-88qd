@@ -77,6 +77,11 @@ export const useFixtureStore = defineStore('fixture', () => {
     patchChecks.value = { ...patchChecks.value, [sessionId]: result }
   }
 
+  /** 清空全部配接校验缓存（检查点恢复后通道整体换回，缓存需要作废） */
+  function invalidatePatchChecks(): void {
+    patchChecks.value = {}
+  }
+
   async function hydrate(): Promise<void> {
     fixtures.value = await db.fixtures.toArray()
     hydrated.value = true
@@ -151,6 +156,7 @@ export const useFixtureStore = defineStore('fixture', () => {
     usedChannels,
     patchCheckOf,
     applyPatchCheck,
+    invalidatePatchChecks,
     hydrate,
     addFixture,
     updateFixture,

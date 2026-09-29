@@ -10,10 +10,12 @@ import {
   NSelect,
   NSwitch,
   NTag,
+  NTooltip,
   useDialog,
   useMessage
 } from 'naive-ui'
 import BlankHint from '@/components/common/BlankHint.vue'
+import { useCheckpointStore } from '@/stores/checkpointStore'
 import { useCueStore } from '@/stores/cueStore'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useSheetStore } from '@/stores/sheetStore'
@@ -27,6 +29,7 @@ const dialog = useDialog()
 const sessionStore = useSessionStore()
 const cueStore = useCueStore()
 const sheetStore = useSheetStore()
+const checkpointStore = useCheckpointStore()
 
 const showAllSessions = ref(false)
 const note = ref('')
@@ -237,6 +240,12 @@ function goSessions(): void {
           <article v-for="sheet in sheets" :key="sheet.id" class="sheet-card">
             <div class="sheet-card__head">
               <span class="sheet-card__no mono">{{ sheet.sheetNo }}</span>
+              <NTooltip v-if="checkpointStore.isSheetFromBeforeRestore(sheet.generatedAt)">
+                <template #trigger>
+                  <NTag size="small" type="warning" :bordered="false">来自恢复前</NTag>
+                </template>
+                此表生成于检查点之后、最近一次恢复之前，恢复不会删除它，仅在此注明来源。
+              </NTooltip>
               <span class="sheet-card__session">{{ sheetTitle(sheet) }}</span>
               <span class="toolbar__spacer" />
               <span class="sheet-card__time mono">{{ formatDateTime(sheet.generatedAt) }}</span>
