@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { RehearsalSheet, SheetChannelLine, SheetCueLine, SheetDraft } from '@/types/sheet'
 import { db } from '@/utils/db'
 import { createId } from '@/utils/id'
+import { deepToPlain } from '@/utils/clone'
 import { sortFixturesByChannel } from '@/utils/patch'
 import { useCueStore } from '@/stores/cueStore'
 import { useFixtureStore } from '@/stores/fixtureStore'
@@ -98,11 +99,40 @@ export const useSheetStore = defineStore('sheet', () => {
       generatedAt: generatedAt.toISOString(),
       includedCueIds: cueLines.map((line) => line.cueId),
       note: draft.note,
-      cueLines
+      cueLines,
+      origin: 'normal',
+      preRestoreMeta: null
     }
     await db.sheets.put(created)
     sheets.value = [...sheets.value, created]
     return created
+  }
+
+  /**
+   * 检查点恢复收尾：把检查点建立之后生成的排演表补标为「来自恢复前」并保留。
+   * 返回补标条数；已是 preRestore 的历史表不重复处理。
+   */
+  async function markPreRestoreSheets(checkpointId: string, checkpointCreatedAt: string): Promise<number> {
+    const checkpointTime = new Date(checkpointCreatedAt).getTime()
+    if (!Number.isFinite(checkpointTime)) {
+      throw new Error('检查点建立时间无效，无法判定排演表来源')
+    }
+    const markedAt = new Date().toISOString()
+    const targets = sheets.value.filter(
+      (sheet) => sheet.origin !== 'preRestore' && new Date(sheet.generatedAt).getTime() > checkpointTime
+    )
+    if (targets.length === 0) return 0
+    const next = targets.map<RehearsalSheet>((sheet) =>
+      deepToPlain({
+        ...sheet,
+        origin: 'preRestore',
+        preRestoreMeta: { checkpointId, checkpointCreatedAt, markedAt }
+      })
+    )
+    await db.sheets.bulkPut(next)
+    const patched = new Map(next.map((sheet) => [sheet.id, sheet]))
+    sheets.value = sheets.value.map((sheet) => patched.get(sheet.id) ?? sheet)
+    return next.length
   }
 
   async function removeSheet(id: string): Promise<void> {
@@ -127,6 +157,7 @@ export const useSheetStore = defineStore('sheet', () => {
     sheetById,
     hydrate,
     createSheet,
+    markPreRestoreSheets,
     removeSheet,
     removeBySession
   }

@@ -242,6 +242,10 @@ function goSessions(): void {
               <span class="sheet-card__time mono">{{ formatDateTime(sheet.generatedAt) }}</span>
             </div>
 
+            <NTag v-if="sheet.origin === 'preRestore'" size="small" type="warning" :bordered="false" class="sheet-card__origin">
+              来自恢复前 · 检查点 {{ formatDateTime(sheet.preRestoreMeta?.checkpointCreatedAt ?? '') }} 之后生成
+            </NTag>
+
             <p class="sheet-card__cues mono">{{ cueNoSummary(sheet) || '（空表）' }}</p>
 
             <div class="sheet-card__meta">
@@ -400,6 +404,10 @@ function goSessions(): void {
 .sheet-card__time {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
+}
+
+.sheet-card__origin {
+  align-self: flex-start;
 }
 
 .sheet-card__cues {

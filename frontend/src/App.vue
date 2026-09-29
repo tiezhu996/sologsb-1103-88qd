@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, watch } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
   NConfigProvider,
   NDialogProvider,
@@ -14,8 +14,10 @@ import {
 } from 'naive-ui'
 import { useCueStore } from '@/stores/cueStore'
 import { useSessionStore } from '@/stores/sessionStore'
+import PendingRestoreBanner from '@/components/common/PendingRestoreBanner.vue'
 
 const route = useRoute()
+const router = useRouter()
 const sessionStore = useSessionStore()
 const cueStore = useCueStore()
 
@@ -70,6 +72,10 @@ const menuOptions = computed<MenuOption[]>(() => {
       key: 'sheets'
     },
     {
+      label: () => h(RouterLink, { to: '/checkpoints' }, { default: () => '联排检查点' }),
+      key: 'checkpoints'
+    },
+    {
       type: 'group',
       label: '当前场次',
       key: 'current-group',
@@ -86,11 +92,16 @@ const menuOptions = computed<MenuOption[]>(() => {
 
 const activeKey = computed(() => {
   const path = route.path
+  if (path.startsWith('/checkpoints')) return 'checkpoints'
   if (path.startsWith('/sheets')) return 'sheets'
   if (path.includes('/fixtures')) return 'fixtures'
   if (path.includes('/cues') || path.includes('/levels')) return 'cues'
   return 'sessions'
 })
+
+function goCheckpoints(): void {
+  void router.push('/checkpoints')
+}
 
 /** 进入详情路由时同步当前场次，保证侧边导航与跨页状态一致 */
 watch(
@@ -144,6 +155,7 @@ const currentSessionLabel = computed(() => {
           </aside>
 
           <main class="app-main">
+            <PendingRestoreBanner @detail="goCheckpoints" />
             <RouterView v-slot="{ Component }">
               <Transition name="page-fade" mode="out-in">
                 <component :is="Component" />
@@ -236,6 +248,8 @@ const currentSessionLabel = computed(() => {
 .app-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 :deep(.app-sider__current) {

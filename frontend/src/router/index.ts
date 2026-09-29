@@ -36,6 +36,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '排演表生成与导出' }
   },
   {
+    path: '/checkpoints',
+    name: 'checkpoint-center',
+    component: () => import('@/pages/CheckpointCenter.vue'),
+    meta: { title: '联排检查点' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/sessions'
   }

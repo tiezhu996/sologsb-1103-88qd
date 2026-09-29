@@ -176,6 +176,9 @@ export function buildSheetText(sheet: RehearsalSheet, session?: Session): string
   }
   lines.push(`生成时间：${formatDateTime(sheet.generatedAt)}`)
   lines.push(`Cue 数量：${sheet.cueLines.length}`)
+  if (sheet.origin === 'preRestore') {
+    lines.push(`来源说明：本表为检查点恢复前生成（检查点建立于 ${formatDateTime(sheet.preRestoreMeta?.checkpointCreatedAt ?? '')}），恢复时按要求留存`)
+  }
   if (sheet.note) lines.push(`制表备注：${sheet.note}`)
   lines.push('')
 
